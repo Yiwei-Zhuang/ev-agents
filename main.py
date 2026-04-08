@@ -1,15 +1,21 @@
+import json
+
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agent import ZPAgent
 
 
-def test_ai():
-    agent = ZPAgent("thread_91872")
+def deepagents_main_loop():
+    with open("key.json", "r") as f:
+        key = json.load(f)
+    agent = ZPAgent("thread_91872", api_key=key["zhipu"])
 
     inputs = [
-        SystemMessage(content="你是一名精通了c语言的专家"),
-        HumanMessage(content="写一个c语言的hello world，保存到当前路径hello.c中，并将编译方式写到Makefile中去。"),
-        # HumanMessage(content="我需要创建一个skill帮助我整理周报"),
+        # SystemMessage(content="你是一名精通了c语言的专家"),
+        # HumanMessage(content="写一个c语言的hello world，保存到当前路径hello.c中，并将编译方式写到Makefile中去。"),
+        # HumanMessage(content="my_day.txt包含了我最近做的事情，帮我整理成日报"),
+        # HumanMessage(content="你有哪些skills"),
+        HumanMessage(content="今天杭州天气如何"),
     ]
     response = agent.invoke(inputs)
     messages = response["messages"]
@@ -21,14 +27,6 @@ def test_ai():
         action_requests = interrupt_value["action_requests"]
         review_configs = interrupt_value["review_configs"]
         decisions = []
-        # TODO: if it is edit decision
-        # decisions = [{
-        #     "type": "edit",
-        #     "edited_action": {
-        #         "name": action_request["name"],  # Must include the tool name
-        #         "args": {"to": "team@company.com", "subject": "...", "body": "..."}
-        #     }
-        # }]
         print(f"\nInterrupt received!")
         for i in range(len(review_configs)):
             review_config = review_configs[i]
@@ -72,6 +70,4 @@ def print_hi(name):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     print_hi("EV")
-    test_ai()
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    deepagents_main_loop()

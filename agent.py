@@ -1,15 +1,16 @@
 import os
 from pathlib import Path
 from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-ZHIPU_API_KEY = "967bec67178e4222b62af22179f19bff.s9ZaTfZBFne5kAyY"
+ZHIPU_API_KEY = "hehe"
 
-skill_path = ["/Users/yiweizhuang/cold/skills/skills"]
+skill_path = ["/Users/yiweizhuang/cold/my_skills/"]
 
 
 @tool
@@ -172,6 +173,7 @@ class ZPAgent:
         )
         self.agent = create_deep_agent(
             model=self.model,
+            backend=FilesystemBackend(root_dir="."),
             skills=skill_path,
             checkpointer=MemorySaver(),
             tools=g_tools,
