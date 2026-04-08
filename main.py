@@ -2,8 +2,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from agent import ZPAgent
 
-ZHIPU_API_KEY = "967bec67178e4222b62af22179f19bff.s9ZaTfZBFne5kAyY"
-
 
 def test_ai():
     agent = ZPAgent("thread_91872")
@@ -11,6 +9,7 @@ def test_ai():
     inputs = [
         SystemMessage(content="你是一名精通了c语言的专家"),
         HumanMessage(content="写一个c语言的hello world，保存到当前路径hello.c中，并将编译方式写到Makefile中去。"),
+        # HumanMessage(content="我需要创建一个skill帮助我整理周报"),
     ]
     response = agent.invoke(inputs)
     messages = response["messages"]
@@ -37,14 +36,27 @@ def test_ai():
             print(f"action_name: {review_config["action_name"]}")
             key_params = agent.get_key_params(review_config["action_name"])
             for k, v in action_request["args"].items():
-                if k in key_params:
-                    print(f"{k}: {v}")
+                print(f"{k}: {v}")
             print(f"allowed_decisions: {review_config["allowed_decisions"]}")
             while True:
                 usr_decision = input(">")
                 if usr_decision in review_config["allowed_decisions"]:
-                    print(f"\nResuming with Command(resume={usr_decision})...")
-                    decisions.append({"type": usr_decision})
+                    decision = {
+                        "type": usr_decision,
+                        "edited_action": {}
+                    }
+
+                    if decision["type"] == "edit":
+                        args = {}
+                        for key, value in action_request["args"].items():
+                            edit_decision = input(f"{key} (enter if not edit):")
+                            if edit_decision != "":
+                                args[key] = edit_decision
+                        decision["edited_action"] = {
+                            "name": action_request["name"],  # Must include the tool name
+                            "args": args
+                        }
+                    decisions.append(decision)
                     break
 
         response = agent.resume(decisions)

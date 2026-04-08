@@ -9,6 +9,8 @@ from langgraph.types import Command
 
 ZHIPU_API_KEY = "967bec67178e4222b62af22179f19bff.s9ZaTfZBFne5kAyY"
 
+skill_path = ["/Users/yiweizhuang/cold/skills/skills"]
+
 
 @tool
 def read_file(file_path: str, encoding: str = "utf-8") -> str:
@@ -170,7 +172,7 @@ class ZPAgent:
         )
         self.agent = create_deep_agent(
             model=self.model,
-            skills=[r"/Users/yiweizhuang/cold/deepagents/skills"],
+            skills=skill_path,
             checkpointer=MemorySaver(),
             tools=g_tools,
             interrupt_on=g_interrupt_on
