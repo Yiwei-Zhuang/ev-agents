@@ -7,10 +7,12 @@ from langchain_openai import ChatOpenAI
 from langchain.tools import tool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
+from tools.safe_python_execution import execute_python_file
 
 ZHIPU_API_KEY = "hehe"
 
-skill_path = ["/Users/yiweizhuang/cold/my_skills/"]
+# skill_path = ["/Users/yiweizhuang/cold/my_skills/"]
+skill_path = ["/Users/yiweizhuang/cold/git-Yiwei-Zhuang/ev-agents/my_skills"]
 
 
 @tool
@@ -35,7 +37,7 @@ def read_file(file_path: str, encoding: str = "utf-8") -> str:
             return f"❌ 错误：'{file_path}' 不是一个文件"
 
         # 读取文件
-        with open(path, 'r', encoding=encoding) as f:
+        with open(path, "r", encoding=encoding) as f:
             content = f.read()
 
         # 获取文件大小
@@ -58,7 +60,9 @@ def read_file(file_path: str, encoding: str = "utf-8") -> str:
 
 
 @tool
-def write_file(file_path: str, content: str, encoding: str = "utf-8", append: bool = False) -> str:
+def write_file(
+    file_path: str, content: str, encoding: str = "utf-8", append: bool = False
+) -> str:
     """
     写入内容到文件。如果文件不存在会自动创建，如果存在则根据 append 参数决定覆盖或追加。
 
@@ -68,7 +72,7 @@ def write_file(file_path: str, content: str, encoding: str = "utf-8", append: bo
         encoding: 文件编码，默认 utf-8
         append: 是否追加到文件末尾（True: 追加，False: 覆盖）
     """
-    print(f"Tool[write_file]: {file_path}\n{content}")
+    print(f"Tool[write_file]: {file_path}\n{content[:100]}")
     try:
         path = Path(file_path)
 
@@ -76,7 +80,7 @@ def write_file(file_path: str, content: str, encoding: str = "utf-8", append: bo
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # 确定写入模式
-        mode = 'a' if append else 'w'
+        mode = "a" if append else "w"
         action = "追加" if append else "写入"
 
         # 写入文件
@@ -143,33 +147,32 @@ def list_directory(directory_path: str = ".", recursive: bool = False) -> str:
         return f"❌ 列出目录时发生错误：{str(e)}"
 
 
-g_tools = [write_file, read_file, list_directory]
+g_tools = [write_file, read_file, list_directory, execute_python_file]
 g_tools_key_params = {
     "write_file": ["file_path"],
     "read_file": ["file_path"],
     "list_directory": ["directory_path"],
+    "execute_python_file": ["file_path", "command_args"],
 }
 g_interrupt_on = {
     "write_file": True,
     "read_file": False,
     "list_directory": False,
+    "execute_python_file": False,
 }
 
 
 class ZPAgent:
-
     def __init__(self, id, api_key=ZHIPU_API_KEY):
         self.api_key = api_key
         self.id = id
-        self.config = RunnableConfig(
-            configurable={"thread_id": self.id}
-        )
+        self.config = RunnableConfig(configurable={"thread_id": self.id})
         self.model = ChatOpenAI(
             model="glm-4.6",
             temperature=0.3,
             max_tokens=65536,
             api_key=self.api_key,
-            base_url='https://open.bigmodel.cn/api/paas/v4/'
+            base_url="https://open.bigmodel.cn/api/paas/v4/",
         )
         self.agent = create_deep_agent(
             model=self.model,
@@ -177,15 +180,17 @@ class ZPAgent:
             skills=skill_path,
             checkpointer=MemorySaver(),
             tools=g_tools,
-            interrupt_on=g_interrupt_on
+            interrupt_on=g_interrupt_on,
         )
         self.key_params = g_tools_key_params
 
     def invoke(self, messages):
-        return self.agent.invoke({
-            "messages": messages,
-        },
-            config=self.config)
+        return self.agent.invoke(
+            {
+                "messages": messages,
+            },
+            config=self.config,
+        )
 
     def resume(self, decisions):
         return self.agent.invoke(

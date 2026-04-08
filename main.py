@@ -15,7 +15,7 @@ def deepagents_main_loop():
         # HumanMessage(content="写一个c语言的hello world，保存到当前路径hello.c中，并将编译方式写到Makefile中去。"),
         # HumanMessage(content="my_day.txt包含了我最近做的事情，帮我整理成日报"),
         # HumanMessage(content="你有哪些skills"),
-        HumanMessage(content="今天杭州天气如何"),
+        HumanMessage(content="今天杭州天气如何，结果直接打出来"),
     ]
     response = agent.invoke(inputs)
     messages = response["messages"]
@@ -64,7 +64,7 @@ def deepagents_main_loop():
 
 def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+    print(f'Hi from {name}')  # Press ⌘F8 to toggle the breakpoint.
 
 
 # Press the green button in the gutter to run the script.
