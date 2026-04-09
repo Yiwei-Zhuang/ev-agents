@@ -8,23 +8,56 @@ from langgraph.types import Command
 
 from tools.file_system_execution import write_file, read_file, list_directory
 from tools.safe_python_execution import execute_python_file
+from tools.git_operations import (
+    git_apply_patch,
+    git_continue_apply,
+    git_add_files,
+    git_status,
+    git_diff,
+    git_log,
+)
 
 ZHIPU_API_KEY = "hehe"
 
 skill_path = ["/Users/yiweizhuang/cold/git-Yiwei-Zhuang/ev-agents/.skills"]
 
-g_tools = [write_file, read_file, list_directory, execute_python_file]
+g_tools = [
+    write_file,
+    read_file,
+    list_directory,
+    execute_python_file,
+    git_apply_patch,
+    git_continue_apply,
+    git_add_files,
+    git_status,
+    git_diff,
+    git_log,
+]
 g_tools_key_params = {
     "write_file": ["file_path"],
     "read_file": ["file_path"],
     "list_directory": ["directory_path"],
     "execute_python_file": ["file_path", "command_args"],
+    "git_apply_patch": ["patch_file"],
+    "git_continue_apply": [],
+    "git_add_files": ["files"],
+    "git_status": [],
+    "git_diff": [],
+    "git_log": ["limit"],
 }
+
+# 当工具的操作存在较高风险时，需要置True让人工二次确认。
 g_interrupt_on = {
     "write_file": True,
     "read_file": False,
     "list_directory": False,
     "execute_python_file": True,
+    "git_apply_patch": True,
+    "git_continue_apply": False,
+    "git_add_files": True,
+    "git_status": False,
+    "git_diff": False,
+    "git_log": False,
 }
 
 
