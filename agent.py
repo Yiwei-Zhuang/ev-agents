@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass, field
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 from langchain_core.runnables import RunnableConfig
@@ -19,7 +20,20 @@ from tools.git_operations import (
 
 ZHIPU_API_KEY = "hehe"
 
-skill_path = ["/Users/yiweizhuang/cold/git-Yiwei-Zhuang/ev-agents/.skills"]
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+@dataclass
+class AgentConfig:
+    model: str = "glm-4.6"
+    temperature: float = 0.3
+    max_tokens: int = 65536
+    base_url: str = "https://open.bigmodel.cn/api/paas/v4/"
+    skills_path: list = field(
+        default_factory=lambda: [os.path.join(PROJECT_ROOT, ".skills")]
+    )
+    backend_root_dir: str = "."
+
 
 g_tools = [
     write_file,
@@ -62,21 +76,22 @@ g_interrupt_on = {
 
 
 class ZPAgent:
-    def __init__(self, id, api_key=ZHIPU_API_KEY):
+    def __init__(self, id, api_key=ZHIPU_API_KEY, config: AgentConfig | None = None):
         self.api_key = api_key
         self.id = id
         self.config = RunnableConfig(configurable={"thread_id": self.id})
+        self.agent_config = config or AgentConfig()
         self.model = ChatOpenAI(
-            model="glm-4.6",
-            temperature=0.3,
-            max_tokens=65536,
+            model=self.agent_config.model,
+            temperature=self.agent_config.temperature,
+            max_tokens=self.agent_config.max_tokens,
             api_key=self.api_key,
-            base_url="https://open.bigmodel.cn/api/paas/v4/",
+            base_url=self.agent_config.base_url,
         )
         self.agent = create_deep_agent(
             model=self.model,
-            backend=FilesystemBackend(root_dir="."),
-            skills=skill_path,
+            backend=FilesystemBackend(root_dir=self.agent_config.backend_root_dir),
+            skills=self.agent_config.skills_path,
             checkpointer=MemorySaver(),
             tools=g_tools,
             interrupt_on=g_interrupt_on,

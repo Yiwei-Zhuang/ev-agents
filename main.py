@@ -1,13 +1,23 @@
 import json
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 
-from agent import ZPAgent
+from agent import ZPAgent, AgentConfig
 
 
 def load_api_key(path="key.json"):
-    with open(path) as f:
-        return json.load(f)["zhipu"]
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)["zhipu"]
+    except FileNotFoundError:
+        print(f"Error: API key file not found: {path}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {path}: {e}")
+        return None
+    except KeyError:
+        print(f"Error: 'zhipu' key not found in {path}")
+        return None
 
 
 def collect_decision(action_request, review_config, agent):
@@ -50,7 +60,12 @@ def handle_interrupts(agent, response):
 
 
 def deepagents_main_loop():
-    agent = ZPAgent("thread_91872", api_key=load_api_key())
+    config = AgentConfig(
+        model="glm-4.6",
+        temperature=0.3,
+        base_url="https://open.bigmodel.cn/api/paas/v4/",
+    )
+    agent = ZPAgent("thread_91872", api_key=load_api_key(), config=config)
 
     inputs = [
         HumanMessage(
