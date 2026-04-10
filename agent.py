@@ -16,6 +16,7 @@ from tools.git_operations import (
     git_status,
     git_diff,
     git_log,
+    git_delete_rej_files,
 )
 
 ZHIPU_API_KEY = "hehe"
@@ -46,6 +47,7 @@ g_tools = [
     git_status,
     git_diff,
     git_log,
+    git_delete_rej_files,
 ]
 g_tools_key_params = {
     "write_file": ["file_path"],
@@ -58,6 +60,7 @@ g_tools_key_params = {
     "git_status": [],
     "git_diff": [],
     "git_log": ["limit"],
+    "git_delete_rej_files": ["working_dir"],
 }
 
 # 当工具的操作存在较高风险时，需要置True让人工二次确认。
@@ -72,6 +75,7 @@ g_interrupt_on = {
     "git_status": False,
     "git_diff": False,
     "git_log": False,
+    "git_delete_rej_files": True,
 }
 
 

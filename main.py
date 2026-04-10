@@ -70,6 +70,7 @@ def deepagents_main_loop():
     inputs = [
         HumanMessage(
             content="给我写个c语言的hello world"
+            # content="当前目录下有些rej文件，帮我删除掉"
             # content="/Users/yiweizhuang/cold/poc_test 目录下有两个patch，帮我在那个git项目下合入一下"
         ),
     ]

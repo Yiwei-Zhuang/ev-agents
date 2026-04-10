@@ -65,6 +65,45 @@ def validate_directory_path(dir_path: str) -> tuple[bool, str, str]:
     return True, str(abs_path), ""
 
 
+def validate_rej_file(
+    file_path: str, base_dir: Path | None = None
+) -> tuple[bool, Path, str]:
+    """
+    验证 .rej 文件路径安全性和合法性
+
+    只允许删除 .rej 扩展名的文件，且必须在允许的目录内
+
+    Args:
+        file_path: 文件路径
+        base_dir: 允许的基础目录（默认为当前工作目录）
+
+    Returns:
+        (是否有效, 绝对路径对象, 错误信息)
+    """
+    path = Path(file_path)
+
+    if not path.suffix == ".rej":
+        return False, Path(), "❌ 只能删除 .rej 文件"
+
+    try:
+        abs_path = path.resolve()
+    except Exception as e:
+        return False, Path(), f"❌ 路径解析失败: {str(e)}"
+
+    if not abs_path.exists():
+        return False, Path(), f"❌ 文件不存在: {file_path}"
+
+    if not abs_path.is_file():
+        return False, Path(), f"❌ 不是文件: {file_path}"
+
+    allowed_dir = (base_dir or Path.cwd()).resolve()
+    try:
+        abs_path.relative_to(allowed_dir)
+        return True, abs_path, ""
+    except ValueError:
+        return False, Path(), f"❌ 文件不在允许的目录内"
+
+
 @tool
 def git_apply_patch(
     patch_file: str, reject: bool = True, working_dir: str = None
@@ -490,6 +529,77 @@ def git_log(limit: int = 10, working_dir: str = None) -> str:
 
         if len(result_parts) == 1:
             result_parts.append("✅ Git log 执行完成")
+
+        print("result: ", "\n\n".join(result_parts))
+        return "\n\n".join(result_parts)
+
+    except Exception as e:
+        print(f"❌ 执行失败: {type(e).__name__}: {str(e)}")
+        return f"❌ 执行失败: {type(e).__name__}: {str(e)}"
+
+
+@tool
+def git_delete_rej_files(working_dir: str = None) -> str:
+    """
+    删除 git am --reject 产生的所有 .rej 文件。
+
+    该工具用于清理代码仓库，删除 git am --reject 过程中产生的 .rej 冲突文件。
+    具有以下安全限制：
+    - 只能删除 .rej 扩展名的文件
+    - 文件必须在允许的目录内（当前工作目录）
+    - 支持在指定目录下执行
+    - 会列出所有被删除的文件
+
+    Args:
+        working_dir: 执行命令的工作目录（可选）
+
+    Returns:
+        删除结果信息，包括被删除的文件列表或错误信息
+
+    示例：
+        git_delete_rej_files()
+        git_delete_rej_files(working_dir="/path/to/project")
+    """
+    print(f"Tool[git_delete_rej_files]: working_dir={working_dir}")
+
+    result_parts = []
+    base_dir = Path(working_dir or os.getcwd())
+
+    if not base_dir.exists() or not base_dir.is_dir():
+        return f"❌ 目录不存在或不是目录: {base_dir}"
+
+    try:
+        rej_files = list(base_dir.rglob("*.rej"))
+
+        if not rej_files:
+            result_parts.append("ℹ️ 没有找到 .rej 文件")
+            print("result: ", "\n\n".join(result_parts))
+            return "\n\n".join(result_parts)
+
+        deleted_files = []
+        failed_files = []
+
+        for rej_file in rej_files:
+            is_valid, abs_path, error_msg = validate_rej_file(str(rej_file), base_dir)
+            if not is_valid:
+                failed_files.append(f"{rej_file}: {error_msg}")
+                continue
+
+            try:
+                abs_path.unlink()
+                deleted_files.append(str(abs_path))
+            except Exception as e:
+                failed_files.append(f"{abs_path}: 删除失败 - {str(e)}")
+
+        if deleted_files:
+            result_parts.append(f"✅ 成功删除 {len(deleted_files)} 个 .rej 文件:")
+            for f in deleted_files:
+                result_parts.append(f"  - {f}")
+
+        if failed_files:
+            result_parts.append(f"⚠️ {len(failed_files)} 个文件删除失败:")
+            for f in failed_files:
+                result_parts.append(f"  - {f}")
 
         print("result: ", "\n\n".join(result_parts))
         return "\n\n".join(result_parts)
