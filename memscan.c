@@ -21,10 +21,18 @@
 #define MAP_POPULATE    0x008000
 #endif
 
+#define MAX_RANGES      256
+
+struct mem_range {
+        unsigned long long start;
+        unsigned long long end;
+};
+
 static sigjmp_buf            jump_buf;
 static volatile sig_atomic_t fault_addr;
 static unsigned long long    total_pages;
 static unsigned long long    total_faults;
+static unsigned long long    total_skipped;
 
 static void sig_handler(int sig, siginfo_t *si, void *ctx)
 {
@@ -69,6 +77,35 @@ static unsigned long long get_meminfo(const char *key)
         return 0;
 }
 
+static int parse_iomem_system_ram(struct mem_range *ranges, int max_ranges)
+{
+        FILE *f;
+        char buf[512];
+        int count = 0;
+
+        f = fopen("/proc/iomem", "r");
+        if (!f) {
+                perror("open /proc/iomem");
+                return 0;
+        }
+
+        while (fgets(buf, sizeof(buf), f)) {
+                unsigned long long start, end;
+                if (strstr(buf, "System RAM") == NULL &&
+                    strstr(buf, "Persistent Memory") == NULL)
+                        continue;
+                if (sscanf(buf, "%llx-%llx", &start, &end) != 2)
+                        continue;
+                ranges[count].start = start;
+                ranges[count].end = end + 1;
+                if (++count >= max_ranges)
+                        break;
+        }
+
+        fclose(f);
+        return count;
+}
+
 static int read_probe(void *map, unsigned long long phys_addr)
 {
         int sig = sigsetjmp(jump_buf, 1);
@@ -90,25 +127,18 @@ static int read_probe(void *map, unsigned long long phys_addr)
         return 0;
 }
 
-static void scan_physical(unsigned long long start, unsigned long long end)
+static void scan_physical_range(int fd, unsigned long long start,
+                                unsigned long long end)
 {
-        int fd;
-
-        printf("\n=== Physical memory scan [0x%llx - 0x%llx] via /dev/mem ===\n",
-               start, end);
-
-        fd = open("/dev/mem", O_RDONLY | O_SYNC);
-        if (fd < 0) {
-                printf("Cannot open /dev/mem: %s (need root)\n", strerror(errno));
-                return;
-        }
-
         unsigned long long addr;
+
         for (addr = start; addr < end; addr += PAGE_SIZE) {
                 void *map = mmap(NULL, PAGE_SIZE, PROT_READ, MAP_SHARED,
                                  fd, (off_t)addr);
                 if (map == MAP_FAILED) {
-                        printf("  [MMAP-FAIL] 0x%012llx: %s\n", addr, strerror(errno));
+                        printf("  [MMAP-FAIL] 0x%012llx: %s\n",
+                               addr, strerror(errno));
+                        total_skipped++;
                         continue;
                 }
 
@@ -122,6 +152,26 @@ static void scan_physical(unsigned long long start, unsigned long long end)
                                total_faults);
                         fflush(stdout);
                 }
+        }
+}
+
+static void scan_physical(const struct mem_range *ranges, int nranges)
+{
+        int fd, i;
+
+        printf("\n=== Physical RAM scan via /dev/mem ===\n");
+
+        fd = open("/dev/mem", O_RDONLY | O_SYNC);
+        if (fd < 0) {
+                printf("Cannot open /dev/mem: %s\n", strerror(errno));
+                return;
+        }
+
+        for (i = 0; i < nranges; i++) {
+                unsigned long long size = ranges[i].end - ranges[i].start;
+                printf("\n  Range %d: [0x%012llx - 0x%012llx) (%llu MB)\n",
+                       i, ranges[i].start, ranges[i].end, size >> 20);
+                scan_physical_range(fd, ranges[i].start, ranges[i].end);
         }
 
         close(fd);
@@ -169,10 +219,8 @@ static void scan_virtual(unsigned long long size)
 static void usage(const char *prog)
 {
         printf("Usage: %s [options]\n"
-               "  -p           Scan physical memory via /dev/mem (root)\n"
+               "  -p           Scan physical RAM via /dev/mem (root, uses /proc/iomem)\n"
                "  -v           Scan virtual memory via mmap (default)\n"
-               "  -s <addr>    Physical start address (default 0)\n"
-               "  -e <addr>    Physical end address (default MemTotal)\n"
                "  -m <size>    Virtual memory size in MB (default MemAvailable)\n"
                "  -h           Help\n",
                prog);
@@ -181,17 +229,15 @@ static void usage(const char *prog)
 int main(int argc, char **argv)
 {
         int do_phys = 0, do_virt = 0;
-        unsigned long long phys_start = 0, phys_end = 0, virt_size = 0;
+        unsigned long long virt_size = 0;
         struct timespec t0, t1;
 
         while (1) {
-                int opt = getopt(argc, argv, "pvs:e:m:h");
+                int opt = getopt(argc, argv, "pvm:h");
                 if (opt == -1) break;
                 switch (opt) {
                 case 'p': do_phys = 1; break;
                 case 'v': do_virt = 1; break;
-                case 's': phys_start = strtoull(optarg, NULL, 0); break;
-                case 'e': phys_end = strtoull(optarg, NULL, 0); break;
                 case 'm': virt_size = strtoull(optarg, NULL, 0) << 20; break;
                 case 'h': usage(argv[0]); return 0;
                 default:  usage(argv[0]); return 1;
@@ -215,9 +261,19 @@ int main(int argc, char **argv)
         clock_gettime(CLOCK_MONOTONIC, &t0);
 
         if (do_phys) {
-                if (!phys_end)
-                        phys_end = get_meminfo("MemTotal") ?: 0x40000000ULL;
-                scan_physical(phys_start, phys_end);
+                struct mem_range ranges[MAX_RANGES];
+                int nranges = parse_iomem_system_ram(ranges, MAX_RANGES);
+                if (nranges == 0) {
+                        printf("\nNo System RAM ranges found in /proc/iomem\n");
+                } else {
+                        unsigned long long total = 0;
+                        int i;
+                        for (i = 0; i < nranges; i++)
+                                total += ranges[i].end - ranges[i].start;
+                        printf("  Physical RAM: %d ranges, %llu MB total\n",
+                               nranges, total >> 20);
+                        scan_physical(ranges, nranges);
+                }
         }
 
         if (do_virt) {
@@ -231,11 +287,12 @@ int main(int argc, char **argv)
 
         printf("\n--- Results ---\n"
                "  Pages tested:  %llu (%llu MB)\n"
+               "  Pages skipped: %llu\n"
                "  Faults:        %llu\n"
                "  Time:          %.2f s\n"
                "  Result:        %s\n",
                total_pages, total_pages * PAGE_SIZE >> 20,
-               total_faults, elapsed,
+               total_skipped, total_faults, elapsed,
                total_faults ? "FAIL" : "PASS");
 
         return total_faults ? 1 : 0;
